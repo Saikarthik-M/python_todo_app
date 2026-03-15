@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-deployment
+spec:
+  selector:
+    matchLabels:
+      app: db-deployment
+  template:
+    metadata:
+      labels:
+        app: db-deployment
+    spec:
+      containers:
+      - name: db-deployment
+        image: mysql:8.0.45-debian
+        ports:
+        - containerPort: 3306
+        env:
+          - name: DB_HOST
+            value: db-service

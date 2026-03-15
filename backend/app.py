@@ -20,7 +20,7 @@ def get_db():
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
-@app.route("/todos", methods=["GET"])
+@app.route("/api/todos", methods=["GET"])
 def get_todos():
     db = get_db()
     cursor = db.cursor(dictionary=True)
@@ -31,7 +31,7 @@ def get_todos():
     return jsonify(todos)
 
 
-@app.route("/todos", methods=["POST"])
+@app.route("/api/todos", methods=["POST"])
 def create_todo():
     data = request.get_json()
     title = data.get("title", "").strip()
@@ -53,7 +53,7 @@ def create_todo():
     return jsonify(todo), 201
 
 
-@app.route("/todos/<int:todo_id>", methods=["PUT"])
+@app.route("/api/todos/<int:todo_id>", methods=["PUT"])
 def update_todo(todo_id):
     data = request.get_json()
     db = get_db()
@@ -83,7 +83,7 @@ def update_todo(todo_id):
     return jsonify(todo)
 
 
-@app.route("/todos/<int:todo_id>", methods=["DELETE"])
+@app.route("/api/todos/<int:todo_id>", methods=["DELETE"])
 def delete_todo(todo_id):
     db = get_db()
     cursor = db.cursor()
@@ -97,6 +97,23 @@ def delete_todo(todo_id):
         return jsonify({"error": "Not found"}), 404
     return jsonify({"message": "Deleted"}), 200
 
+@app.route("/api/health/ready", methods=["GET"])
+def readiness():
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        cursor.close()
+        db.close()
 
+        return jsonify({"status": "ready"}), 200
+
+    except Exception as e:
+        return jsonify({
+            "status": "not ready",
+            "error": str(e)
+        }), 500
+        
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5000)
