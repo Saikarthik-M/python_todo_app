@@ -114,6 +114,34 @@ def readiness():
             "status": "not ready",
             "error": str(e)
         }), 500
-        
+
+def run_migrations():
+    try:
+        db = mysql.connector.connect(
+            host=os.getenv("DB_HOST", "localhost"),
+            user=os.getenv("DB_USER", "root"),
+            password=os.getenv("DB_PASSWORD", "pass123")
+        )
+
+        cursor = db.cursor()
+
+        with open("schema.sql", "r") as f:
+            sql_commands = f.read().split(";")
+
+        for command in sql_commands:
+            command = command.strip()
+            if command:
+                cursor.execute(command)
+
+        db.commit()
+        cursor.close()
+        db.close()
+
+        print("Database migration completed.")
+
+    except Exception as e:
+        print("Migration failed:", e)
+
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    run_migrations()
+    app.run(debug=True, host="0.0.0.0", port=5000)
