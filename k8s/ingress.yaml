@@ -6,7 +6,6 @@ metadata:
     app.kubernetes.io/name: python-ingress
 spec:
   rules:
-  - host: todopython.com
     http:
       paths:
       - pathType: Prefix

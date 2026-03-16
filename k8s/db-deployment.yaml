@@ -17,5 +17,7 @@ spec:
         ports:
         - containerPort: 3306
         env:
-          - name: DB_HOST
-            value: db-service
+          - name: MYSQL_ROOT_PASSWORD
+            value: pass123
+          - name: MYSQL_DATABASE
+            value: todo_db
