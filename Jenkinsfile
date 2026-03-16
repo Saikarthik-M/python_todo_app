@@ -1,16 +1,22 @@
 pipeline {
     agent any
+    environment {
+        DOCKER_USERNAME = "saikarthik28"
+        BACKEND_IMAGE = "python-todo-backend"
+        FRONTEND_IMAGE = "python-todo-frontend"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+    }
     stages {
         stage('Build Docker image'){
             steps {
-                sh 'docker build -t saikarthik28/python-todo-frontend:${BUILD_NUMBER} ./frontend'
-                sh 'docker build -t saikarthik28/python-todo-backend:${BUILD_NUMBER} ./backend'
+                sh 'docker build -t $DOCKER_USERNAME/$FRONTEND_IMAGE:$IMAGE_TAG ./frontend'
+                sh 'docker build -t $DOCKER_USERNAME/$BACKEND_IMAGE:$IMAGE_TAG ./backend'
             }
         }
         stage('Check Docker image'){
             steps {
-                sh 'trivy image --exit-code 0 --format table --output trivy-frontend.txt saikarthik28/python-todo-frontend:${BUILD_NUMBER}'
-                sh 'trivy image --exit-code 0 --format table --output trivy-backend.txt saikarthik28/python-todo-backend:${BUILD_NUMBER}'
+                sh 'trivy image --exit-code 0 --format table --output trivy-frontend.txt $DOCKER_USERNAME/$FRONTEND_IMAGE:$IMAGE_TAG'
+                sh 'trivy image --exit-code 0 --format table --output trivy-backend.txt $DOCKER_USERNAME/$BACKEND_IMAGE:$IMAGE_TAG'
             }
         }
         stage('Login Docker'){
@@ -26,21 +32,35 @@ pipeline {
         }
         stage('Docker Image Tag'){
             steps{
-                sh 'docker tag saikarthik28/python-todo-frontend:${BUILD_NUMBER} saikarthik28/python-todo-frontend:latest'
-                sh 'docker tag saikarthik28/python-todo-backend:${BUILD_NUMBER} saikarthik28/python-todo-backend:latest'
+                sh 'docker tag $DOCKER_USERNAME/$FRONTEND_IMAGE:$IMAGE_TAG $DOCKER_USERNAME/$FRONTEND_IMAGE:latest'
+                sh 'docker tag $DOCKER_USERNAME/$BACKEND_IMAGE:$IMAGE_TAG $DOCKER_USERNAME/$BACKEND_IMAGE:latest'
             }
         }
         stage('Push Docker image'){
             steps {
-                sh 'docker push saikarthik28/python-todo-frontend:${BUILD_NUMBER}'
-                sh 'docker push saikarthik28/python-todo-backend:${BUILD_NUMBER}'
-                sh 'docker push saikarthik28/python-todo-frontend:latest'
-                sh 'docker push saikarthik28/python-todo-backend:latest'
+                sh 'docker push $DOCKER_USERNAME/$FRONTEND_IMAGE:$IMAGE_TAG'
+                sh 'docker push $DOCKER_USERNAME/$BACKEND_IMAGE:$IMAGE_TAG'
+                sh 'docker push $DOCKER_USERNAME/$FRONTEND_IMAGE:latest'
+                sh 'docker push $DOCKER_USERNAME/$BACKEND_IMAGE:latest'
             }
         }
-        stage('Deploy'){
+        stage('Deploy to Kubernetes') {
             steps {
-                sh 'kubectl apply -f k8s/'
+                sh """
+                kubectl set image deployment/backend-deployment \
+                backend-deployment=$DOCKER_USERNAME/$BACKEND_IMAGE:$IMAGE_TAG
+
+                kubectl set image deployment/frontend-deployment \
+                frontend=$DOCKER_USERNAME/$FRONTEND_IMAGE:$IMAGE_TAG
+                """
+            }
+        }
+        stage('Verify Deployment') {
+            steps {
+                sh """
+                kubectl rollout status deployment/backend-deployment
+                kubectl rollout status deployment/frontend-deployment
+                """
             }
         }
     }
