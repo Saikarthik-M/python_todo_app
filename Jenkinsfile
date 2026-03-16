@@ -51,7 +51,7 @@ pipeline {
                 backend-deployment=$DOCKER_USERNAME/$BACKEND_IMAGE:$IMAGE_TAG
 
                 kubectl set image deployment/frontend-deployment \
-                frontend=$DOCKER_USERNAME/$FRONTEND_IMAGE:$IMAGE_TAG
+                frontend-deployment=$DOCKER_USERNAME/$FRONTEND_IMAGE:$IMAGE_TAG
                 """
             }
         }
