@@ -38,6 +38,11 @@ pipeline {
                 sh 'docker push saikarthik28/python-todo-backend:latest'
             }
         }
+        stage('Deploy'){
+            steps {
+                sh 'kubectl apply -f k8s/'
+            }
+        }
     }
     post {
         always {
