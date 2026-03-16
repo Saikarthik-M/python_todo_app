@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import mysql.connector
 import os
+import time
 
 app = Flask(__name__)
 CORS(app)
@@ -116,32 +117,36 @@ def readiness():
         }), 500
 
 def run_migrations():
-    try:
-        db = mysql.connector.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            user=os.getenv("DB_USER", "root"),
-            password=os.getenv("DB_PASSWORD", "pass123")
-        )
+    for i in range(10):
+        try:
+            db = mysql.connector.connect(
+                host=os.getenv("DB_HOST"),
+                user=os.getenv("DB_USER"),
+                password=os.getenv("DB_PASSWORD")
+            )
 
-        cursor = db.cursor()
+            cursor = db.cursor()
 
-        with open("schema.sql", "r") as f:
-            sql_commands = f.read().split(";")
+            with open("schema.sql", "r") as f:
+                sql = f.read()
 
-        for command in sql_commands:
-            command = command.strip()
-            if command:
-                cursor.execute(command)
+            for statement in sql.split(";"):
+                stmt = statement.strip()
+                if stmt:
+                    cursor.execute(stmt)
 
-        db.commit()
-        cursor.close()
-        db.close()
+            db.commit()
+            cursor.close()
+            db.close()
 
-        print("Database migration completed.")
+            print("Migration successful")
+            return
 
-    except Exception as e:
-        print("Migration failed:", e)
+        except Exception as e:
+            print("DB not ready, retrying...", e)
+            time.sleep(5)
 
+    raise Exception("Database migration failed after retries")
 if __name__ == "__main__":
     run_migrations()
     app.run(debug=True, host="0.0.0.0", port=5000)
