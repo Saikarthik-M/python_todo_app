@@ -43,7 +43,7 @@ services:
     command: image --format table --output /home/ubuntu/trivydata/frontend.txt frontend
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /home/ubuntu/trivydata:/home/ubuntu/trivydata
+      - trivydata:/home/ubuntu/trivydata
     depends_on:
       - frontend
   trivy_backend:
@@ -52,7 +52,7 @@ services:
     command: image --format table --output /home/ubuntu/trivydata/backend.txt backend
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /home/ubuntu/trivydata:/home/ubuntu/trivydata
+      - trivydata:/home/ubuntu/trivydata
     depends_on:
      - backend
 volumes:
