@@ -77,6 +77,19 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh """
+                    # Apply SecretStore first
+                    kubectl apply -f k8s/secret-store.yaml -n ${NAMESPACE}
+
+                    # Apply ExternalSecret next
+                    kubectl apply -f k8s/external-secret.yaml -n ${NAMESPACE}
+
+                    # Wait for secret to sync from AWS
+                    echo "Waiting for secret to sync..."
+                    kubectl wait externalsecret db-credentials \
+                    --for=condition=Ready \
+                    --timeout=60s \
+                    -n ${NAMESPACE}
+
                     # Apply manifests — creates if not exists, updates if exists
                     kubectl apply -f k8s/ -n ${NAMESPACE}
 
