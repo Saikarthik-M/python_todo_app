@@ -36,7 +36,7 @@ jobs:
     - name: Fetch Docker credentials
       run: |
         SECRET=$(aws secretsmanager get-secret-value \
-          --secret-id dockerhub-creds \
+          --secret-id docker-creds \
           --query SecretString \
           --output text)
 
