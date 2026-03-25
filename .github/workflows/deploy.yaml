@@ -52,11 +52,16 @@ jobs:
     # Install Trivy
     - name: Install Trivy
       run: |
-        sudo apt-get install -y wget apt-transport-https gnupg
-        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-        echo deb https://aquasecurity.github.io/trivy-repo/deb stable main | sudo tee -a /etc/apt/sources.list.d/trivy.list
-        sudo apt-get update
-        sudo apt-get install -y trivy
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | \
+        sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+
+        echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] \
+          https://aquasecurity.github.io/trivy-repo/deb generic main" | \
+          sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
+
+        sudo apt update -y
+        sudo apt install -y trivy
+        trivy --version
 
     # Scan Docker Images
     - name: Scan Docker Images
