@@ -9,4 +9,4 @@ export MYSQL_ROOT_PASSWORD=$password
 # Step 3: docker-compose up
 docker compose build
 docker compose up -d
-docker compose up -d --force-recreate trivy_frontend trivy_backend
+docker compose up -d --force-recreate trivy_frontend trivy_backend 
