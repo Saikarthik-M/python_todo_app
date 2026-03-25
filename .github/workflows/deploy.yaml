@@ -1,0 +1,128 @@
+name: CI-CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  DOCKER_USERNAME: saikarthik28
+  BACKEND_IMAGE: python-todo-backend
+  FRONTEND_IMAGE: python-todo-frontend
+  NAMESPACE: default
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    # Checkout
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # Configure AWS (to fetch secrets)
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+        aws-region: ap-south-1
+
+    # Install jq (for parsing secrets)
+    - name: Install jq
+      run: sudo apt-get update && sudo apt-get install -y jq
+
+    # Fetch DockerHub credentials from AWS Secrets Manager
+    - name: Fetch Docker credentials
+      run: |
+        SECRET=$(aws secretsmanager get-secret-value \
+          --secret-id dockerhub-creds \
+          --query SecretString \
+          --output text)
+
+        echo "DOCKER_USER=$(echo $SECRET | jq -r .username)" >> $GITHUB_ENV
+        echo "DOCKER_PASS=$(echo $SECRET | jq -r .password)" >> $GITHUB_ENV
+
+    # Build Docker Images
+    - name: Build Docker Images
+      run: |
+        docker build -t $DOCKER_USERNAME/$FRONTEND_IMAGE:${{ github.run_number }} ./frontend
+        docker build -t $DOCKER_USERNAME/$BACKEND_IMAGE:${{ github.run_number }} ./backend
+
+    # Install Trivy
+    - name: Install Trivy
+      run: |
+        sudo apt-get install -y wget apt-transport-https gnupg
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+        echo deb https://aquasecurity.github.io/trivy-repo/deb stable main | sudo tee -a /etc/apt/sources.list.d/trivy.list
+        sudo apt-get update
+        sudo apt-get install -y trivy
+
+    # Scan Docker Images
+    - name: Scan Docker Images
+      run: |
+        trivy image --exit-code 0 --format table --output trivy-frontend.txt $DOCKER_USERNAME/$FRONTEND_IMAGE:${{ github.run_number }}
+        trivy image --exit-code 0 --format table --output trivy-backend.txt $DOCKER_USERNAME/$BACKEND_IMAGE:${{ github.run_number }}
+
+    # Login to DockerHub (from AWS secrets)
+    - name: Login to DockerHub
+      run: echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+    # Tag Images
+    - name: Tag Docker Images
+      run: |
+        docker tag $DOCKER_USERNAME/$FRONTEND_IMAGE:${{ github.run_number }} $DOCKER_USERNAME/$FRONTEND_IMAGE:latest
+        docker tag $DOCKER_USERNAME/$BACKEND_IMAGE:${{ github.run_number }} $DOCKER_USERNAME/$BACKEND_IMAGE:latest
+
+    # Push Images
+    - name: Push Docker Images
+      run: |
+        docker push $DOCKER_USERNAME/$FRONTEND_IMAGE:${{ github.run_number }}
+        docker push $DOCKER_USERNAME/$BACKEND_IMAGE:${{ github.run_number }}
+        docker push $DOCKER_USERNAME/$FRONTEND_IMAGE:latest
+        docker push $DOCKER_USERNAME/$BACKEND_IMAGE:latest
+
+    # Setup kubectl
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v4
+
+    # Configure kubeconfig
+    - name: Configure kubeconfig
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
+
+    # Deploy to Kubernetes
+    - name: Deploy to Kubernetes
+      run: |
+        kubectl apply -f k8s/secret-store.yaml -n $NAMESPACE
+        kubectl apply -f k8s/external-secret.yaml -n $NAMESPACE
+
+        echo "Waiting for secret to sync..."
+        kubectl wait externalsecret db-credentials \
+          --for=condition=Ready \
+          --timeout=60s \
+          -n $NAMESPACE
+
+        kubectl apply -f k8s/ -n $NAMESPACE
+
+        kubectl set image deployment/backend-deployment \
+          backend-deployment=$DOCKER_USERNAME/$BACKEND_IMAGE:${{ github.run_number }} \
+          -n $NAMESPACE
+
+        kubectl set image deployment/frontend-deployment \
+          frontend-deployment=$DOCKER_USERNAME/$FRONTEND_IMAGE:${{ github.run_number }} \
+          -n $NAMESPACE
+
+    # Verify Deployment
+    - name: Verify Deployment
+      run: |
+        kubectl rollout status deployment/backend-deployment -n $NAMESPACE --timeout=120s
+        kubectl rollout status deployment/frontend-deployment -n $NAMESPACE --timeout=120s
+
+    # Upload Trivy Reports
+    - name: Upload Trivy Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: trivy-reports
+        path: trivy-*.txt
